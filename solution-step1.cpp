@@ -19,6 +19,10 @@
 #include <math.h>
 #include <limits>
 #include <iomanip>
+#include <time.h>
+
+clock_t start, end;
+double cpu_time_used;
 
 
 double t          = 0;
@@ -189,30 +193,40 @@ void updateBody() {
   double* force1 = new double[NumberOfBodies];
   double* force2 = new double[NumberOfBodies];
 
-  for (int i=1; i<NumberOfBodies; i++) {
-    const double distance = sqrt(
-      (x[0][0]-x[i][0]) * (x[0][0]-x[i][0]) +
-      (x[0][1]-x[i][1]) * (x[0][1]-x[i][1]) +
-      (x[0][2]-x[i][2]) * (x[0][2]-x[i][2])
-    );
+  for (int i = 0; i < NumberOfBodies; i++) {
+    for (int j = i + 1; j < NumberOfBodies; j++) {
+      const double distance = sqrt(
+        (x[j][0]-x[i][0]) * (x[j][0]-x[i][0]) +
+        (x[j][1]-x[i][1]) * (x[j][1]-x[i][1]) +
+        (x[j][2]-x[i][2]) * (x[j][2]-x[i][2])
+      );
 
-    // x,y,z forces acting on particle 0
-    force0[0] += (x[i][0]-x[0][0]) * mass[i]*mass[0] / distance / distance / distance ;
-    force1[0] += (x[i][1]-x[0][1]) * mass[i]*mass[0] / distance / distance / distance ;
-    force2[0] += (x[i][2]-x[0][2]) * mass[i]*mass[0] / distance / distance / distance ;
+      double M2perD3 = mass[j]*mass[i] / distance / distance / distance;
 
-    minDx = std::min( minDx,distance );
+      double forceHolder = (x[j][0]-x[i][0]) * M2perD3 ;
+      force0[i] += forceHolder;
+      force0[j] -= forceHolder;
+
+      forceHolder = (x[j][1]-x[i][1]) * M2perD3 ;
+      force1[i] += forceHolder;
+      force1[j] -= forceHolder;
+
+      forceHolder = (x[j][2]-x[i][2]) * M2perD3 ;
+      force2[i] += forceHolder;
+      force2[j] -= forceHolder;
+
+    }
+    
+    x[i][0] = x[i][0] + timeStepSize * v[i][0];
+    x[i][1] = x[i][1] + timeStepSize * v[i][1];
+    x[i][2] = x[i][2] + timeStepSize * v[i][2];
+
+    v[i][0] = v[i][0] + timeStepSize * force0[i] / mass[i];
+    v[i][1] = v[i][1] + timeStepSize * force1[i] / mass[i];
+    v[i][2] = v[i][2] + timeStepSize * force2[i] / mass[i];
+    
+    maxV = std::max(maxV, std::sqrt( v[i][0]*v[i][0] + v[i][1]*v[i][1] + v[i][2]*v[i][2] ));
   }
-
-  x[0][0] = x[0][0] + timeStepSize * v[0][0];
-  x[0][1] = x[0][1] + timeStepSize * v[0][1];
-  x[0][2] = x[0][2] + timeStepSize * v[0][2];
-
-  v[0][0] = v[0][0] + timeStepSize * force0[0] / mass[0];
-  v[0][1] = v[0][1] + timeStepSize * force1[0] / mass[0];
-  v[0][2] = v[0][2] + timeStepSize * force2[0] / mass[0];
-
-  maxV = std::sqrt( v[0][0]*v[0][0] + v[0][1]*v[0][1] + v[0][2]*v[0][2] );
 
   t += timeStepSize;
 
@@ -228,6 +242,7 @@ void updateBody() {
  * Not to be changed in assignment.
  */
 int main(int argc, char** argv) {
+  start = clock();
   if (argc==1) {
     std::cerr << "usage: " + std::string(argv[0]) + " snapshot final-time dt objects" << std::endl
               << "  snapshot        interval after how many time units to plot. Use 0 to switch off plotting" << std::endl
@@ -280,6 +295,12 @@ int main(int argc, char** argv) {
   }
 
   closeParaviewVideoFile();
+  
+  end = clock();
+
+  cpu_time_used = ((double) end - start) / CLOCKS_PER_SEC;
+
+  std::cout << cpu_time_used << std::endl;
 
   return 0;
 }

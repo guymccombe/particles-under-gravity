@@ -1,1 +1,6 @@
+.vscode
 task.pdf
+*.exe
+*.pvd
+*.vtp
+initial-conditions*.txt
