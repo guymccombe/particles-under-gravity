@@ -189,9 +189,9 @@ void updateBody() {
   // force0 = force along x direction
   // force1 = force along y direction
   // force2 = force along z direction
-  double* force0 = new double[NumberOfBodies];
-  double* force1 = new double[NumberOfBodies];
-  double* force2 = new double[NumberOfBodies];
+  double* force0 = new double[NumberOfBodies]();
+  double* force1 = new double[NumberOfBodies]();
+  double* force2 = new double[NumberOfBodies]();
 
   for (int i = 0; i < NumberOfBodies; i++) {
     for (int j = i + 1; j < NumberOfBodies; j++) {
@@ -201,17 +201,17 @@ void updateBody() {
         (x[j][2]-x[i][2]) * (x[j][2]-x[i][2])
       );
 
-      double M2perD3 = mass[j]*mass[i] / distance / distance / distance;
 
-      double forceHolder = (x[j][0]-x[i][0]) * M2perD3 ;
+
+      double forceHolder = (x[j][0]-x[i][0]) * mass[j]*mass[i] / distance / distance / distance ;
       force0[i] += forceHolder;
       force0[j] -= forceHolder;
 
-      forceHolder = (x[j][1]-x[i][1]) * M2perD3 ;
+      forceHolder = (x[j][1]-x[i][1]) * mass[j]*mass[i] / distance / distance / distance ;
       force1[i] += forceHolder;
       force1[j] -= forceHolder;
 
-      forceHolder = (x[j][2]-x[i][2]) * M2perD3 ;
+      forceHolder = (x[j][2]-x[i][2]) * mass[j]*mass[i] / distance / distance / distance ;
       force2[i] += forceHolder;
       force2[j] -= forceHolder;
 
