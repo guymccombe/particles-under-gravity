@@ -225,6 +225,61 @@ void updateBody() {
     v[i][1] = v[i][1] + timeStepSize * force1[i] / mass[i];
     v[i][2] = v[i][2] + timeStepSize * force2[i] / mass[i];
 
+    // Check for a collision
+    if (minDx <= 1e-2) {
+      std::cout << "minDX < 1e-2" << std::endl;
+      for (int i=0; i<NumberOfBodies; i++) {
+        for (int j=i+1; j<NumberOfBodies; j++) {
+          const double distanceBetweenIJ = 
+            (x[j][0] - x[i][0]) * (x[j][0] - x[i][0]) +
+            (x[j][1] - x[i][1]) * (x[j][1] - x[i][1]) +
+            (x[j][2] - x[i][2]) * (x[j][2] - x[i][2]);
+          std::cout << distanceBetweenIJ << std::endl;
+          if (distanceBetweenIJ <= 1e-4) {
+            int min, max;
+            if (i < j) {
+              min = i;
+              max = j;
+            } else {
+              min = j;
+              max = i;
+            }
+            std::cout << "Collision between min: " << min << " and max : " << max << std::endl;
+            NumberOfBodies--;
+            std::cout << "There remains: " << NumberOfBodies << std::endl;
+            const double oneOverMass = 1 / (mass[i] + mass[j]);
+            const double weightedMassMin = mass[min] * oneOverMass;
+            const double weightedMassMax = mass[max] * oneOverMass;
+
+            x[min][0] = weightedMassMin * x[min][0] + weightedMassMax * x[max][0];
+            x[min][1] = weightedMassMin * x[min][1] + weightedMassMax * x[max][1];
+            x[min][2] = weightedMassMin * x[min][2] + weightedMassMax * x[max][2];
+
+            x[max][0] = x[NumberOfBodies][0];
+            x[max][1] = x[NumberOfBodies][1];
+            x[max][2] = x[NumberOfBodies][2];
+
+            if (NumberOfBodies == 1) {
+              std::cout << "Position of final object: " << x[0][0] << ", " <<
+               x[0][1] << ", " << x[0][1] << "." << std::endl;
+              std::_Exit(0);
+            }
+
+            v[min][0] = weightedMassMin * v[min][0] + weightedMassMax * v[max][0];
+            v[min][1] = weightedMassMin * v[min][1] + weightedMassMax * v[max][1];
+            v[min][2] = weightedMassMin * v[min][2] + weightedMassMax * v[max][2];
+
+            v[max][0] = v[NumberOfBodies][0];
+            v[max][1] = v[NumberOfBodies][1];
+            v[max][2] = v[NumberOfBodies][2];
+
+            mass[min] = mass[i] + mass[j];
+            mass[max] = mass[NumberOfBodies];
+          }
+        }
+      }
+    }
+
     maxV = std::max(maxV, v[i][0] * v[i][0] + v[i][1] * v[i][1] + v[i][2] * v[i][2]);
   }
 
@@ -283,13 +338,14 @@ int main(int argc, char** argv) {
     timeStepCounter++;
     if (t >= tPlot) {
       printParaviewSnapshot();
+/*
       std::cout << "plot next snapshot"
     		    << ",\t time step=" << timeStepCounter
     		    << ",\t t="         << t
 				<< ",\t dt="        << timeStepSize
 				<< ",\t v_max="     << maxV
 				<< ",\t dx_min="    << minDx
-				<< std::endl;
+				<< std::endl;*/  
 
       tPlot += tPlotDelta;
     }
