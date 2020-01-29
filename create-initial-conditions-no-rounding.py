@@ -3,9 +3,10 @@ from random import random
 
 
 def createParticles( numberOfParticles, minMass, maxMass ):
-  numberOfParticlesPerAxis = (int)(round(numberOfParticles**(1.0/3.0)))
+  numberOfParticlesPerAxis = (int)(round(numberOfParticles**(1.0/3.0)))//1
+  print("particles per axis", numberOfParticlesPerAxis)
+  diff = numberOfParticles - numberOfParticlesPerAxis**3
   particleString = ""
-  print( "create " + str(numberOfParticlesPerAxis) + " particles per axis" )
   # h = 1.0 /numberOfParticlesPerAxis
   h = 1.0
   for x in range(0,numberOfParticlesPerAxis):
@@ -16,6 +17,14 @@ def createParticles( numberOfParticles, minMass, maxMass ):
       zPos = (random() - 0.5)*0.9*h + z * h
       mass = random()*(maxMass-minMass) + minMass
       particleString = particleString + " " + str(xPos) + " " + str(yPos) + " " + str(zPos) + " 0 0 0 " + str(mass) + "     "
+  # stick in the remaining wanted particles
+  print("diff is", diff)
+  for p in range(0, diff):
+    xPos = (random() - 0.5)*0.9*h + random() * h * numberOfParticlesPerAxis
+    yPos = (random() - 0.5)*0.9*h + random() * h * numberOfParticlesPerAxis
+    zPos = (random() - 0.5)*0.9*h + random() * h * numberOfParticlesPerAxis
+    mass = random()*(maxMass-minMass) + minMass
+    particleString = particleString + " " + str(xPos) + " " + str(yPos) + " " + str(zPos) + " 0 0 0 " + str(mass) + "     "
   return particleString
 
 

@@ -19,11 +19,6 @@
 #include <math.h>
 #include <limits>
 #include <iomanip>
-#include <time.h>
-
-clock_t start, end;
-double cpu_time_used;
-
 
 double t          = 0;
 double tFinal     = 0;
@@ -229,7 +224,7 @@ void updateBody() {
   }
 
   t += timeStepSize;
-  maxV = std::sqrt(maxV);
+  maxV = sqrt(maxV);
 
   delete[] force0;
   delete[] force1;
@@ -243,7 +238,6 @@ void updateBody() {
  * Not to be changed in assignment.
  */
 int main(int argc, char** argv) {
-  start = clock();
   if (argc==1) {
     std::cerr << "usage: " + std::string(argv[0]) + " snapshot final-time dt objects" << std::endl
               << "  snapshot        interval after how many time units to plot. Use 0 to switch off plotting" << std::endl
@@ -296,12 +290,6 @@ int main(int argc, char** argv) {
   }
 
   closeParaviewVideoFile();
-  
-  end = clock();
-
-  cpu_time_used = ((double) end - start) / CLOCKS_PER_SEC;
-
-  std::cout << cpu_time_used << std::endl;
 
   return 0;
 }

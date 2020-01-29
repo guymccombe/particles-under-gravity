@@ -178,116 +178,140 @@ void printParaviewSnapshot() {
  * This is the only operation you are allowed to change in the assignment.
  */
 void updateBody() {
-  maxV = 0.0;
-  minDx = std::numeric_limits < double > ::max();
+  maxV = maxV * maxV;
+
+  const int PowersOfTwo[] = {1, 2, 4, 8, 16, 32, 64, 128, 256, 512};
+
+  int * Buckets = new int[NumberOfBodies];
+
+  #pragma omp parallel for
+  for (int i = 0; i < NumberOfBodies; i++) {
+    double speed = v[i][0] * v[i][0] + v[i][1] * v[i][1] + v[i][2] * v[i][2];
+    if (maxV == 0) {
+      Buckets[i] = 0;
+    } else {
+      Buckets[i] = floor((speed * 9) / maxV);
+    }
+  }
 
   // force0 = force along x direction
   // force1 = force along y direction
   // force2 = force along z direction
-  double * force0 = new double[NumberOfBodies]();
-  double * force1 = new double[NumberOfBodies]();
-  double * force2 = new double[NumberOfBodies]();
+  double * force0 = new double[NumberOfBodies];
+  double * force1 = new double[NumberOfBodies];
+  double * force2 = new double[NumberOfBodies];
 
-  for (int i = 0; i < NumberOfBodies; i++) {
-    for (int j = i + 1; j < NumberOfBodies; j++) {
-      const double distance = sqrt(
-        (x[j][0] - x[i][0]) * (x[j][0] - x[i][0]) +
-        (x[j][1] - x[i][1]) * (x[j][1] - x[i][1]) +
-        (x[j][2] - x[i][2]) * (x[j][2] - x[i][2])
-      );
+  for (int t = 1; t <= 512; t++) {
+    maxV = 0.0;
+    minDx = std::numeric_limits < double > ::max();
 
-      minDx = std::min( minDx,distance );
+    #pragma omp parallel for reduction(min:minDx)
+    for (int i = 0; i < NumberOfBodies; i++) {
+      force0[i] = 0;
+      force1[i] = 0;
+      force2[i] = 0;
 
-      const double m2perD3 = mass[j] * mass[i] / distance / distance / distance;
-      double forceHolder = (x[j][0] - x[i][0]) * m2perD3;
-      force0[i] += forceHolder;
-      force0[j] -= forceHolder;
+      if ((t % PowersOfTwo[9 - Buckets[i]]) == 0) {
+        for (int j = 0; j < NumberOfBodies; j++) {
+          if (i != j) {
+            const double distance = sqrt(
+              (x[j][0] - x[i][0]) * (x[j][0] - x[i][0]) +
+              (x[j][1] - x[i][1]) * (x[j][1] - x[i][1]) +
+              (x[j][2] - x[i][2]) * (x[j][2] - x[i][2])
+            );
 
-      forceHolder = (x[j][1] - x[i][1]) * m2perD3;
-      force1[i] += forceHolder;
-      force1[j] -= forceHolder;
+            minDx = std::min( minDx,distance );
 
-      forceHolder = (x[j][2] - x[i][2]) * m2perD3;
-      force2[i] += forceHolder;
-      force2[j] -= forceHolder;
+            const double m2perD3 = mass[j] * mass[i] / distance / distance / distance;
+            force0[i] += (x[j][0] - x[i][0]) * m2perD3;
+            force1[i] += (x[j][1] - x[i][1]) * m2perD3;
+            force2[i] += (x[j][2] - x[i][2]) * m2perD3;
+          }
+        }
+      }
     }
 
-    x[i][0] = x[i][0] + timeStepSize * v[i][0];
-    x[i][1] = x[i][1] + timeStepSize * v[i][1];
-    x[i][2] = x[i][2] + timeStepSize * v[i][2];
+    #pragma omp parallel for reduction(max:maxV)
+    for (int i = 0; i < NumberOfBodies; i++) {
+      double scaledTimeStepSize = timeStepSize / PowersOfTwo[Buckets[i]];
 
-    v[i][0] = v[i][0] + timeStepSize * force0[i] / mass[i];
-    v[i][1] = v[i][1] + timeStepSize * force1[i] / mass[i];
-    v[i][2] = v[i][2] + timeStepSize * force2[i] / mass[i];
+      x[i][0] = x[i][0] + scaledTimeStepSize * v[i][0];
+      x[i][1] = x[i][1] + scaledTimeStepSize * v[i][1];
+      x[i][2] = x[i][2] + scaledTimeStepSize * v[i][2];
 
-    maxV = std::max(maxV, v[i][0] * v[i][0] + v[i][1] * v[i][1] + v[i][2] * v[i][2]);
-  }
-  
-  // Check for a collision
-  if (minDx <= 1e-2) {
-    for (int i=0; i<NumberOfBodies; i++) {
-      for (int j=i+1; j<NumberOfBodies; j++) {
-        const double distanceBetweenIJ = 
-          (x[j][0] - x[i][0]) * (x[j][0] - x[i][0]) +
-          (x[j][1] - x[i][1]) * (x[j][1] - x[i][1]) +
-          (x[j][2] - x[i][2]) * (x[j][2] - x[i][2]);
+      v[i][0] = v[i][0] + scaledTimeStepSize * force0[i] / mass[i];
+      v[i][1] = v[i][1] + scaledTimeStepSize * force1[i] / mass[i];
+      v[i][2] = v[i][2] + scaledTimeStepSize * force2[i] / mass[i];        
 
-        if (distanceBetweenIJ <= 1e-4) {  // 1e-4 because I do not SQRT the distance between
-          int min, max;
-          if (i < j) {
-            min = i;
-            max = j;
-          } else {
-            min = j;
-            max = i;
+      maxV = std::max(maxV, v[i][0] * v[i][0] + v[i][1] * v[i][1] + v[i][2] * v[i][2]);
+    }
+    
+    // Check for a collision
+    if (minDx <= 1e-2) {
+      for (int i=0; i<NumberOfBodies; i++) {
+        for (int j=i+1; j<NumberOfBodies; j++) {
+          const double distanceBetweenIJ = 
+            (x[j][0] - x[i][0]) * (x[j][0] - x[i][0]) +
+            (x[j][1] - x[i][1]) * (x[j][1] - x[i][1]) +
+            (x[j][2] - x[i][2]) * (x[j][2] - x[i][2]);
+
+          if (distanceBetweenIJ <= 1e-4) {
+            int min, max;
+            if (i < j) {
+              min = i;
+              max = j;
+            } else {
+              min = j;
+              max = i;
+            }
+            NumberOfBodies--;
+
+            const double oneOverMass = 1 / (mass[i] + mass[j]);
+            const double weightedMassMin = mass[min] * oneOverMass;
+            const double weightedMassMax = mass[max] * oneOverMass;
+
+            x[min][0] = weightedMassMin * x[min][0] + weightedMassMax * x[max][0];
+            x[min][1] = weightedMassMin * x[min][1] + weightedMassMax * x[max][1];
+            x[min][2] = weightedMassMin * x[min][2] + weightedMassMax * x[max][2];
+
+            x[max][0] = x[NumberOfBodies][0];
+            x[max][1] = x[NumberOfBodies][1];
+            x[max][2] = x[NumberOfBodies][2];
+
+            if (NumberOfBodies == 1) {
+              std::cout << "Position of final object: " << x[0][0] << ", " <<
+                x[0][1] << ", " << x[0][2] << "." << std::endl;
+              tFinal = 0;
+              return;
+            }
+
+            v[min][0] = weightedMassMin * v[min][0] + weightedMassMax * v[max][0];
+            v[min][1] = weightedMassMin * v[min][1] + weightedMassMax * v[max][1];
+            v[min][2] = weightedMassMin * v[min][2] + weightedMassMax * v[max][2];
+
+            v[max][0] = v[NumberOfBodies][0];
+            v[max][1] = v[NumberOfBodies][1];
+            v[max][2] = v[NumberOfBodies][2];
+
+            mass[min] = mass[i] + mass[j];
+            mass[max] = mass[NumberOfBodies];
+
+            j--;
           }
-          NumberOfBodies--;
-
-
-          const double oneOverMass = 1 / (mass[i] + mass[j]);
-          const double weightedMassMin = mass[min] * oneOverMass;
-          const double weightedMassMax = mass[max] * oneOverMass;
-
-          x[min][0] = weightedMassMin * x[min][0] + weightedMassMax * x[max][0];
-          x[min][1] = weightedMassMin * x[min][1] + weightedMassMax * x[max][1];
-          x[min][2] = weightedMassMin * x[min][2] + weightedMassMax * x[max][2];
-
-          x[max][0] = x[NumberOfBodies][0];
-          x[max][1] = x[NumberOfBodies][1];
-          x[max][2] = x[NumberOfBodies][2];
-
-          if (NumberOfBodies == 1) {
-            std::cout << "Position of final object: " << x[0][0] << ", " <<
-              x[0][1] << ", " << x[0][2] << "." << std::endl;
-            // Exit naturally
-            tFinal = 0;
-            return;
-          }
-
-          v[min][0] = weightedMassMin * v[min][0] + weightedMassMax * v[max][0];
-          v[min][1] = weightedMassMin * v[min][1] + weightedMassMax * v[max][1];
-          v[min][2] = weightedMassMin * v[min][2] + weightedMassMax * v[max][2];
-
-          v[max][0] = v[NumberOfBodies][0];
-          v[max][1] = v[NumberOfBodies][1];
-          v[max][2] = v[NumberOfBodies][2];
-
-          mass[min] = mass[i] + mass[j];
-          mass[max] = mass[NumberOfBodies];
-
-          j--;
         }
       }
     }
   }
 
 
-  t += timeStepSize;
-  maxV = sqrt(maxV);
-
   delete[] force0;
   delete[] force1;
   delete[] force2;
+
+  delete[] Buckets;
+
+  maxV = sqrt(maxV);
+  t += timeStepSize;
 }
 
 
@@ -337,20 +361,19 @@ int main(int argc, char** argv) {
     if (t >= tPlot) {
       printParaviewSnapshot();
 
-
       std::cout << "plot next snapshot"
     		    << ",\t time step=" << timeStepCounter
     		    << ",\t t="         << t
 				<< ",\t dt="        << timeStepSize
 				<< ",\t v_max="     << maxV
 				<< ",\t dx_min="    << minDx
-				<< std::endl;  
+				<< std::endl;
 
       tPlot += tPlotDelta;
     }
   }
 
   closeParaviewVideoFile();
-  
+
   return 0;
 }

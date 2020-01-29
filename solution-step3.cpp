@@ -19,11 +19,6 @@
 #include <math.h>
 #include <limits>
 #include <iomanip>
-#include <time.h>
-
-clock_t start, end;
-double cpu_time_used;
-
 
 double t          = 0;
 double tFinal     = 0;
@@ -183,8 +178,9 @@ void printParaviewSnapshot() {
  * This is the only operation you are allowed to change in the assignment.
  */
 void updateBody() {
-  const int NumberOfBuckets = 10;
   maxV = maxV * maxV;
+
+  const int PowersOfTwo[] = {1, 2, 4, 8, 16, 32, 64, 128, 256, 512};
 
   int * Buckets = new int[NumberOfBodies];
   for (int i = 0; i < NumberOfBodies; i++) {
@@ -192,30 +188,29 @@ void updateBody() {
     if (maxV == 0) {
       Buckets[i] = 0;
     } else {
-      Buckets[i] = std::floor((speed * (NumberOfBuckets-1)) / maxV);
+      Buckets[i] = floor((speed * 9) / maxV);
     }
-    //std:: cout << Buckets[i] << std::endl;
   }
 
-  for (int t = 1; t <= pow(2, NumberOfBuckets-1); t++) {
-    // force0 = force along x direction
-    // force1 = force along y direction
-    // force2 = force along z direction
-    double * force0 = new double[NumberOfBodies]();
-    double * force1 = new double[NumberOfBodies]();
-    double * force2 = new double[NumberOfBodies]();
+  // force0 = force along x direction
+  // force1 = force along y direction
+  // force2 = force along z direction
+  double * force0 = new double[NumberOfBodies];
+  double * force1 = new double[NumberOfBodies];
+  double * force2 = new double[NumberOfBodies];
 
+  for (int t = 1; t <= 512; t++) {
     maxV = 0.0;
     minDx = std::numeric_limits < double > ::max();
 
     for (int i = 0; i < NumberOfBodies; i++) {
-      int raisedToPower = pow(2, (NumberOfBuckets - Buckets[i] - 1));
-      //std::cout << t << " modulo " << raisedToPower << " = " << t % raisedToPower << std::endl;
-      if ((t % raisedToPower) == 0) {
-        //std::cout << "Particle " << i << " is in bucket : " << Buckets[i] << std::endl;
+      force0[i] = 0;
+      force1[i] = 0;
+      force2[i] = 0;
+
+      if ((t % PowersOfTwo[9 - Buckets[i]]) == 0) {
         for (int j = 0; j < NumberOfBodies; j++) {
           if (i != j) {
-            //std::cout << "Working on particles " << i << " and " << j << std::endl;
             const double distance = sqrt(
               (x[j][0] - x[i][0]) * (x[j][0] - x[i][0]) +
               (x[j][1] - x[i][1]) * (x[j][1] - x[i][1]) +
@@ -231,7 +226,7 @@ void updateBody() {
           }
         }
 
-        double scaledTimeStepSize = timeStepSize / pow(2, Buckets[i]);
+        double scaledTimeStepSize = timeStepSize / PowersOfTwo[Buckets[i]];
 
         x[i][0] = x[i][0] + scaledTimeStepSize * v[i][0];
         x[i][1] = x[i][1] + scaledTimeStepSize * v[i][1];
@@ -247,14 +242,13 @@ void updateBody() {
     
     // Check for a collision
     if (minDx <= 1e-2) {
-      std::cout << "minDX < 1e-2" << std::endl;
       for (int i=0; i<NumberOfBodies; i++) {
         for (int j=i+1; j<NumberOfBodies; j++) {
           const double distanceBetweenIJ = 
             (x[j][0] - x[i][0]) * (x[j][0] - x[i][0]) +
             (x[j][1] - x[i][1]) * (x[j][1] - x[i][1]) +
             (x[j][2] - x[i][2]) * (x[j][2] - x[i][2]);
-          std::cout << distanceBetweenIJ << std::endl;
+
           if (distanceBetweenIJ <= 1e-4) {
             int min, max;
             if (i < j) {
@@ -264,9 +258,8 @@ void updateBody() {
               min = j;
               max = i;
             }
-            std::cout << "Collision between min: " << min << " and max : " << max << std::endl;
             NumberOfBodies--;
-            std::cout << "There remains: " << NumberOfBodies << std::endl;
+
             const double oneOverMass = 1 / (mass[i] + mass[j]);
             const double weightedMassMin = mass[min] * oneOverMass;
             const double weightedMassMax = mass[max] * oneOverMass;
@@ -281,8 +274,9 @@ void updateBody() {
 
             if (NumberOfBodies == 1) {
               std::cout << "Position of final object: " << x[0][0] << ", " <<
-              x[0][1] << ", " << x[0][2] << "." << std::endl;
-              std::_Exit(0);
+                x[0][1] << ", " << x[0][2] << "." << std::endl;
+              tFinal = 0;
+              return;
             }
 
             v[min][0] = weightedMassMin * v[min][0] + weightedMassMax * v[max][0];
@@ -301,16 +295,17 @@ void updateBody() {
         }
       }
     }
-    delete[] force0;
-    delete[] force1;
-    delete[] force2;
   }
 
-  maxV = std::sqrt(maxV);
+
+  delete[] force0;
+  delete[] force1;
+  delete[] force2;
+
+  delete[] Buckets;
+
+  maxV = sqrt(maxV);
   t += timeStepSize;
-
-  //std::cout << "Time step " << t << " finished." << std::endl;
-
 }
 
 
@@ -320,7 +315,6 @@ void updateBody() {
  * Not to be changed in assignment.
  */
 int main(int argc, char** argv) {
-  start = clock();
   if (argc==1) {
     std::cerr << "usage: " + std::string(argv[0]) + " snapshot final-time dt objects" << std::endl
               << "  snapshot        interval after how many time units to plot. Use 0 to switch off plotting" << std::endl
@@ -374,12 +368,6 @@ int main(int argc, char** argv) {
   }
 
   closeParaviewVideoFile();
-  
-  end = clock();
-
-  cpu_time_used = ((double) end - start) / CLOCKS_PER_SEC;
-
-  std::cout << cpu_time_used << std::endl;
 
   return 0;
 }
